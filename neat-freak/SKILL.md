@@ -45,10 +45,13 @@ description: >
 
 如果项目根存在 `memory/`，它是 Claude Code、Codex、OpenCode 等 Agent 的**共享项目记忆层**，优先级高于平台私有记忆，低于代码和正式文档。
 
+如果存在全局记忆目录（如 `/Users/alan/AI/memory/`），它只放用户长期偏好、跨项目工作流、项目索引。项目业务事实不得塞进全局层。
+
 推荐职责：
 
 | 位置 | 职责 |
 |---|---|
+| 全局 `memory/memory.md` | 跨项目索引、用户偏好入口、通用工作流入口 |
 | `memory/memory.md` | 项目记忆索引、必读顺序、权威入口 |
 | `memory/preference.md` | 项目偏好、协作方式、输出习惯 |
 | `memory/decisions.md` | 长期有效决策，必须写绝对日期 |
@@ -59,6 +62,7 @@ description: >
 
 - 不要让 Codex 直接维护 Claude Code 的私有 memory，也不要让 Claude Code 直接改 Codex 的全局配置；共享事实统一进项目 `memory/` 或正式文档。
 - `AGENTS.md` / `CLAUDE.md` 只做薄入口：指向 `memory/`、README、docs/、项目知识库；不要堆历史流水账。
+- 全局 `memory/` 只登记项目入口和跨项目偏好；如果发现项目细节误入全局层，迁回项目 `memory/`。
 - 普通收尾优先更新 `memory/handoff.md`；稳定决策再晋升到 `memory/decisions.md`；面向人类或下游的内容再同步到 README/docs/。
 - 如果 `memory/` 和 README/docs/冲突，先核对代码和正式文档，再修正记忆。
 
@@ -187,6 +191,7 @@ API 速查表、环境变量表、术语表是高频查询的结构化信息，*
 - [ ] 记忆之间没有互相矛盾
 - [ ] `memory/handoff.md` 已反映本轮跨 Agent 接力状态（若项目有 `memory/`）
 - [ ] 新的长期决策已晋升到 `memory/decisions.md`，没有只留在 handoff/session
+- [ ] 全局 `memory/` 没有混入项目业务细节，项目入口索引仍然可用（若存在全局层）
 - [ ] CLAUDE.md / AGENTS.md 里提到的路径 / 命令 / 工具 / 环境变量在代码中真实存在
 - [ ] README 的安装 / 运行步骤跟代码一致
 - [ ] 新增 API 路由：**在 integration-guide 和 architecture 都出现了**
