@@ -9,8 +9,9 @@ description: >
   "新人能直接上手", or any phrase suggesting a dev milestone where knowledge needs
   reconciliation. Also trigger when the user reports stale docs, conflicting memories,
   or wants a clean handoff to teammates or other agents. Bare "整理" / "tidy" with
-  prior dev context counts — do not under-trigger. Cross-platform: works on Claude Code,
-  OpenAI Codex, OpenCode, and OpenClaw.
+  prior dev context counts — do not under-trigger. Default to a fast handoff/memory
+  sync; run full deep cleanup only when explicitly requested. Cross-platform: works
+  on Claude Code, OpenAI Codex, OpenCode, and OpenClaw.
 ---
 
 # 洁癖 — Knowledge Base Neat-Freak
@@ -40,6 +41,27 @@ description: >
 
 > **Agent 记忆系统的具体位置因平台而异**（Claude Code 在 `~/.claude/projects/<...>/memory/`，Codex 用 `AGENTS.md`，OpenCode 用 `.opencode/`，OpenClaw 用 `~/.openclaw/`）。完整路径速查见 [references/agent-paths.md](references/agent-paths.md)。如果当前 agent 没有独立的记忆系统，直接跳过这一层，把功夫全花在 docs 和项目根 markdown 上。
 
+### Local Memory First / 跨 Agent 记忆一致性
+
+如果项目根存在 `memory/`，它是 Claude Code、Codex、OpenCode 等 Agent 的**共享项目记忆层**，优先级高于平台私有记忆，低于代码和正式文档。
+
+推荐职责：
+
+| 位置 | 职责 |
+|---|---|
+| `memory/memory.md` | 项目记忆索引、必读顺序、权威入口 |
+| `memory/preference.md` | 项目偏好、协作方式、输出习惯 |
+| `memory/decisions.md` | 长期有效决策，必须写绝对日期 |
+| `memory/handoff.md` | 上一轮跨 Agent 接力摘要 |
+| `memory/sessions/` | 可追溯的重要会话沉淀，不要求每轮都写 |
+
+规则：
+
+- 不要让 Codex 直接维护 Claude Code 的私有 memory，也不要让 Claude Code 直接改 Codex 的全局配置；共享事实统一进项目 `memory/` 或正式文档。
+- `AGENTS.md` / `CLAUDE.md` 只做薄入口：指向 `memory/`、README、docs/、项目知识库；不要堆历史流水账。
+- 普通收尾优先更新 `memory/handoff.md`；稳定决策再晋升到 `memory/decisions.md`；面向人类或下游的内容再同步到 README/docs/。
+- 如果 `memory/` 和 README/docs/冲突，先核对代码和正式文档，再修正记忆。
+
 ### CLAUDE.md / AGENTS.md 是规则手册，不是变更日志（重要）
 
 最常见的 skill 翻车模式：每次开发完都在 CLAUDE.md 顶部加一段 blockquote 历史叙事——"2026-05-08 X 功能上线，详见 docs/Y.md"。一次很爽，半年后顶部就是 200 行 blockquote 把真正的规则推到看不见。**这种叙事不属于 CLAUDE.md**，它的归宿是 git log / `/changelog` 页 / `docs/CHANGES.md`。
@@ -60,9 +82,20 @@ description: >
 
 ## 执行流程
 
+### 执行档位：默认 fast，显式 deep
+
+先判定档位，再执行。不要把每次“同步一下”都做成全项目审计。
+
+| 档位 | 触发 | 做什么 |
+|---|---|---|
+| `fast`（默认） | “收尾 / 同步一下 / 更新记忆 / 整理一下” | 更新 `memory/handoff.md`，检查本轮涉及文件，同步相关索引，确认 `AGENTS.md` / `CLAUDE.md` 仍是薄入口 |
+| `deep`（显式） | “深度整理 / 全量同步 / 新人交接 / 整个项目打扫一遍” | 执行原完整流程：枚举全项目文档、审查所有记忆、清理冲突和过期内容 |
+
+`fast` 发现明显冲突时，只记录冲突并询问是否升档到 `deep`；不要自动扩大到全量整理。
+
 ### 第零步：尺寸体检（防膨胀）
 
-任何同步动作之前，先 `wc -l` 关键文件：
+任何同步动作之前，先 `wc -l` 关键文件。`fast` 只查本轮相关文件、`memory/` 和入口文件；`deep` 才查全量关键文件：
 
 | 文件 | Soft limit | 超过怎么办 |
 |---|---|---|
@@ -77,11 +110,12 @@ description: >
 
 ### 第一步：盘点现状（强制机械式枚举，不能跳过）
 
-**先做 ls，再做判断。**
+**先做 ls，再做判断。** `fast` 只盘点本轮相关文件、入口文件和项目 `memory/`；`deep` 必须执行下面的完整枚举。
 
 1. 列出 agent 的记忆文件（如有）：
    - Claude Code：`ls ~/.claude/projects/<...>/memory/` 并读 `MEMORY.md` 及所有被引用的 `.md`
    - Codex / OpenCode / 其他：找该 agent 的等价位置（见 references/agent-paths.md）
+   - 若项目根存在 `memory/`，先读 `memory/memory.md`、`memory/handoff.md`、`memory/decisions.md`
 2. 对本次对话涉及的**每一个项目**：
    - `ls <project-root>/` → 确认根目录结构
    - `ls <project-root>/docs/ 2>/dev/null` → **枚举所有 docs**（缺失也要确认）
@@ -144,12 +178,15 @@ API 速查表、环境变量表、术语表是高频查询的结构化信息，*
 - [ ] 没新增 "X 起 Y 上线，详见 docs/Z.md" 这种 blockquote 历史叙事条目
 - [ ] 没在 CLAUDE.md 里抄 docs/ 已有的详细机制说明
 - [ ] 单条 memory 文件没超 ~100 行（超了拆 / 删 / 改成 reference）
+- [ ] 项目 `AGENTS.md` / `CLAUDE.md` 仍是薄入口，长期事实已沉淀到 `memory/` 或 docs/
 
 **完整性 / 反漏改（再查这组）**：
 - [ ] 第一步列出的每个文件，都判断了"不用改"或"已改"
 - [ ] 记忆索引（若有）里的每个链接指向存在的文件
 - [ ] 每个记忆文件的 description 和内容对得上
 - [ ] 记忆之间没有互相矛盾
+- [ ] `memory/handoff.md` 已反映本轮跨 Agent 接力状态（若项目有 `memory/`）
+- [ ] 新的长期决策已晋升到 `memory/decisions.md`，没有只留在 handoff/session
 - [ ] CLAUDE.md / AGENTS.md 里提到的路径 / 命令 / 工具 / 环境变量在代码中真实存在
 - [ ] README 的安装 / 运行步骤跟代码一致
 - [ ] 新增 API 路由：**在 integration-guide 和 architecture 都出现了**
